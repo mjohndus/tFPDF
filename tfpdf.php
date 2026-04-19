@@ -38,7 +38,7 @@ protected $cMargin;            // cell margin
 protected $x, $y;              // current position in user unit
 protected $lasth;              // height of last printed cell
 protected $LineWidth;          // line width in user unit
-protected $fontpath;           // path containing fonts
+protected $fontpath;           // directory containing fonts
 protected $CoreFonts;          // array of core font names
 protected $fonts;              // array of used fonts
 protected $FontFiles;          // array of font files
@@ -106,15 +106,9 @@ function __construct($orientation='P', $unit='mm', $size='A4')
 	$this->ws = 0;
 	// Font path
 	if(defined('FPDF_FONTPATH'))
-	{
 		$this->fontpath = FPDF_FONTPATH;
-		if(substr($this->fontpath,-1)!='/' && substr($this->fontpath,-1)!='\\')
-			$this->fontpath .= '/';
-	}
-	elseif(is_dir(dirname(__FILE__).'/font'))
-		$this->fontpath = dirname(__FILE__).'/font/';
 	else
-		$this->fontpath = '';
+		$this->fontpath = dirname(__FILE__).'/font/';
 	// Core fonts
 	$this->CoreFonts = array('courier', 'helvetica', 'times', 'symbol', 'zapfdingbats');
 	// Scale factor
@@ -461,7 +455,7 @@ function Rect($x, $y, $w, $h, $style='')
 	$this->_out(sprintf('%.2F %.2F %.2F %.2F re %s',$x*$this->k,($this->h-$y)*$this->k,$w*$this->k,-$h*$this->k,$op));
 }
 
-function AddFont($family, $style='', $file='', $uni=false)
+function AddFont($family, $style='', $file='', $dir='', $uni=false)
 {
 	// Add a TrueType, OpenType or Type1 font
 	$family = strtolower($family);
@@ -546,11 +540,18 @@ function AddFont($family, $style='', $file='', $uni=false)
 		unset($cw);
 	}
 	else {
-		$info = $this->_loadfont($file);
+	    if(strpos($file,'/')!==false || strpos($file,"\\")!==false)
+     		$this->Error('Incorrect font definition file name: '.$file);
+	    if($dir=='')
+	    	$dir = $this->fontpath;
+	    if(substr($dir,-1)!='/' && substr($dir,-1)!='\\')
+		    $dir .= '/';
+    	$info = $this->_loadfont($dir.$file);
 		$info['i'] = count($this->fonts)+1;
 		if(!empty($info['file']))
 		{
 			// Embedded font
+    		$info['file'] = $dir.$info['file'];
 			if($info['type']=='TrueType')
 				$this->FontFiles[$info['file']] = array('length1'=>$info['originalsize']);
 			else
@@ -1340,14 +1341,12 @@ protected function _endpage()
 	$this->state = 1;
 }
 
-protected function _loadfont($font)
+protected function _loadfont($path)
 {
-	// Load a font definition file from the font directory
-	if(strpos($font,'/')!==false || strpos($font,"\\")!==false)
-		$this->Error('Incorrect font definition file name: '.$font);
-	include($this->fontpath.$font);
+	// Load a font definition file
+	include($path);
 	if(!isset($name))
-		$this->Error('Could not include font definition file');
+		$this->Error('Could not include font definition file: '.$path);
 	if(isset($enc))
 		$enc = strtolower($enc);
 	if(!isset($subsetted))
@@ -1779,7 +1778,7 @@ protected function _putfonts()
 			// Font file embedding
 			$this->_newobj();
 			$this->FontFiles[$file]['n'] = $this->n;
-			$font = file_get_contents($this->fontpath.$file,true);
+			$font = file_get_contents($file);
 			if(!$font)
 				$this->Error('Font file not found: '.$file);
 			$compressed = (substr($file,-2)=='.z');
